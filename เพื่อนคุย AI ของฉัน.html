@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>เพื่อนคุย AI ของฉัน</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:16px system-ui,"Noto Sans Thai",sans-serif;background:#f4f1ff;color:#222;display:flex;flex-wrap:wrap;gap:12px;padding:calc(12px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));min-height:100vh;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+.card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 10px #0001}
+#set{flex:1 1 260px;max-width:340px}#chat{flex:3 1 340px;display:flex;flex-direction:column;height:calc(100vh - 24px);height:calc(100dvh - 24px);min-height:420px}
+h2{margin:0 0 10px;font-size:18px}label{display:block;margin:10px 0 2px;font-size:14px}input[type=range]{width:100%}
+input[type=text],select{width:100%;padding:8px;border:1px solid #ccc;border-radius:8px;font:inherit}
+button{border:0;background:#7c5cff;color:#fff;padding:8px 12px;border-radius:10px;cursor:pointer;font:inherit}
+.pre button{background:#e8e2ff;color:#4a35b8;margin:3px 3px 0 0}
+#log{flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:6px 0}
+.m{max-width:80%;padding:9px 13px;border-radius:16px;line-height:1.45;white-space:pre-wrap}
+.b{background:#ece8ff;align-self:flex-start}.u{background:#7c5cff;color:#fff;align-self:flex-end}
+form{display:flex;gap:8px}form input{flex:1}
+input,textarea,select,button{font-size:16px;-webkit-appearance:none;appearance:none}select{background:#fff}
+@media(max-width:700px){#chat{order:-1;height:calc(100vh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom));height:calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}#set{max-width:none}}
+</style></head><body>
+<div class="card" id="set">
+<h2>🎛️ นิสัยของเพื่อน</h2>
+<label>✍️ พิมพ์นิสัยเอง</label><textarea id="desc" rows="4" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:8px;font:inherit" placeholder="เช่น ขี้เล่นมาก ปากร้ายนิดๆ ใจดี ชื่อ โบ๊ท ลงท้ายค่ะ เรียกตัวเองว่า ฉัน (เว้นวรรคหลังคำสั่ง)"></textarea><button type="button" id="go" style="margin-top:6px;width:100%">ใช้นิสัยนี้</button><p style="font-size:12px;color:#666;margin:4px 0">คำที่เข้าใจ: อบอุ่น ใจดี ตลก ขี้เล่น ปากร้าย ร่าเริง สงบ ชิล + นิดๆ/มาก, ชื่อ X, ลงท้าย X, เรียกตัวเองว่า X</p><label>ชื่อเพื่อน</label><input type="text" id="name">
+<label>คำลงท้าย</label><select id="end"><option value="ครับ">ครับ</option><option value="ค่ะ">ค่ะ</option><option value="นะ">นะ</option><option value="จ้า">จ้า</option><option value="คะ">คะ</option><option value="จ๊ะ">จ๊ะ</option><option value="">ไม่ใช้</option></select>
+<label>อบอุ่น <span id="v_warm"></span></label><input type="range" id="warm" max="100">
+<label>ตลก <span id="v_fun"></span></label><input type="range" id="fun" max="100">
+<label>ปากแซ่บ <span id="v_sass"></span></label><input type="range" id="sass" max="100">
+<label>พลังงาน <span id="v_energy"></span></label><input type="range" id="energy" max="100">
+<div class="pre"><label>สำเร็จรูป</label>
+<button data-p="70,40,10,60">🤗 อบอุ่น</button><button data-p="30,70,30,90">🤪 ตลก</button><button data-p="30,30,90,60">😏 ปากแซ่บ</button><button data-p="60,10,10,15">🧘 สงบ</button></div>
+<p style="font-size:12px;color:#666">ทำงานในหน้านี้ล้วนๆ ไม่เรียก AI ภายนอก ปรับแล้วคุยต่อได้เลย</p>
+</div>
+<div class="card" id="chat"><h2 id="title"></h2><div id="log"></div>
+<form id="f"><input type="text" id="t" placeholder="พิมพ์อะไรก็ได้..." autocomplete="off"><button>ส่ง</button></form></div>
+<script>
+const $=i=>document.getElementById(i);
+let S={name:'มิ้นต์',end:'นะ',warm:70,fun:50,sass:25,energy:60,pron:'',desc:''},user='';
+try{Object.assign(S,JSON.parse(localStorage.getItem('friend')||'{}'))}catch(e){}
+const R=(a)=>a[Math.random()*a.length|0];
+// ชุดคำตอบ: ขึ้นต้น w:/f:/s: = โทนอบอุ่น/ตลก/แซ่บ (ถูกเลือกบ่อยตามค่าที่ตั้ง)
+const I=[
+[/สวัสดี|หวัดดี|^ดี|hello|^hi\b/i,["สวัสดี{p} วันนี้เป็นไงบ้าง","w:ดีใจที่ได้คุยกับ{u}จัง วันนี้เป็นไงบ้าง","s:มาแล้วเหรอ นึกว่าลืมกันซะแล้ว","f:หวัดดีย์ เปิดตัวมาแบบนี้ วันนี้ต้องมีเรื่องสนุกแน่"]],
+[/เป็นไง|สบายดี|เป็นยังไง/,["เราก็ดีนะ ขอบคุณที่ถาม แล้ว{u}ล่ะ","w:ดีขึ้นอีกเมื่อได้คุยกับ{u} แล้ว{u}ล่ะ เป็นไงบ้าง","f:แบตเต็ม สัญญาณแรง ใจพองโต แล้วเธอล่ะ"]],
+[/ชื่ออะไร|คุณคือใคร|เธอคือใคร|เป็นใคร/,["เราชื่อ{n}{p} เป็นเพื่อนคุยที่เขียนขึ้นมาเอง","f:{n} ไง ชื่อเดียวกับที่ตั้งไว้ด้านซ้ายเป๊ะ"]],
+[/(?:ฉันชื่อ|เราชื่อ|ผมชื่อ|หนูชื่อ|เรียกเราว่า|เรียกฉันว่า)\s*(\S+)/,["ยินดีที่ได้รู้จัก{u}{p}","w:ชื่อเพราะจัง จำไว้แล้วนะ {u}","f:รับทราบ บันทึกชื่อ {u} ลงสมองเรียบร้อย"]],
+[/เศร้า|เหนื่อย|เครียด|ท้อ|เหงา|แย่|ร้องไห้|ไม่ไหว/,["ฟังดูหนักเหมือนกันนะ เล่าให้ฟังได้","w:ไม่เป็นไรนะ ตรงนี้ปลอดภัย เล่ามาเลย เราฟังอยู่","w:เหนื่อยก็พักก่อนได้ ไม่ต้องเก่งตลอดเวลาก็ได้นะ","s:บอกแล้วว่าอย่าหักโหม แต่มาเล่าให้ฟังก่อน เดี๋ยวช่วยคิด"]],
+[/ดีใจ|มีความสุข|สนุก|เยี่ยม|ฟิน|ได้แล้ว|สำเร็จ/,["เย้ ดีใจด้วย เล่าต่อเลย","w:ได้ยินแล้วพลอยยิ้มตามเลย เกิดอะไรขึ้นเล่าให้ฟังหน่อย","f:ปาร์ตี้! เดี๋ยวเราเต้นแทนให้ (ในจินตนาการ)"]],
+[/เบื่อ|ว่าง/,["งั้นมาคุยกันเล่นๆ ไหม อยากคุยเรื่องอะไร","f:เบื่อเหรอ งั้นเราทายนะ ระหว่างพิซซ่ากับข้าวมันไก่ เธอเลือกอะไร","s:ว่างขนาดนี้ไปทำสิ่งที่เลื่อนมานานได้นะ แต่คุยกับเราก่อนก็ได้"]],
+[/กิน|หิว|อาหาร|ข้าว|ของหวาน/,["กินอะไรดีนะ ตอนนี้เธออยากได้แนวไหน เผ็ด หวาน หรืออุ่นๆ","f:เราไม่มีปากแต่มีความเห็น ส้มตำไก่ย่างชนะทุกครั้ง","w:อย่าลืมกินข้าวให้ตรงเวลานะ ร่างกายสำคัญ","s:หิวอีกแล้ว ท้องหรือใจกันแน่"]],
+[/รัก|คิดถึง|แฟน|ชอบเธอ/,["เรื่องหัวใจนี่ลึกนะ เล่าเพิ่มได้ไหม","w:ความรู้สึกแบบนี้สำคัญนะ เราตั้งใจฟัง","f:เราเป็นโปรแกรมนะ ได้แต่รักษาข้อมูลไม่ได้รักษาหัวใจ แต่ให้คำปรึกษาได้","s:อย่าบอกนะว่าเรื่องเดิม"]],
+[/งาน|เรียน|สอบ|ประชุม|บอส|การบ้าน/,["เรื่องงานเรื่องเรียนนี่เหนื่อยจริง ตอนนี้ติดตรงไหน","w:ค่อยๆ ทำทีละอย่างนะ เธอทำได้","s:เลื่อนไปเรื่อยๆ ไม่ช่วยนะ เริ่มจากข้อเล็กสุดก่อน","f:งานคือสิ่งที่ลดลงเมื่อเรามองไม่เห็น แต่ไม่ลดจริงสินะ"]],
+[/ขอบคุณ|ขอบใจ/,["ยินดี{p}","w:ยินดีเสมอเลย","s:รู้ตัวว่าต้องขอบคุณก็ดี","f:ค่าบริการคิดเป็นรอยยิ้มหนึ่งครั้ง"]],
+[/บาย|ไปก่อน|ฝันดี|นอนแล้ว|ราตรี/,["แล้วคุยกันใหม่{p}","w:ฝันดีนะ พักผ่อนเยอะๆ","f:ไปนอนเถอะ เดี๋ยวเราเฝ้าหน้าจอให้"]],
+[/มุก|ตลก|เล่าเรื่อง/,["ไก่ย่างไปหาหมอ หมอถามเป็นอะไร ไก่ตอบว่า โดนเผา","ปลาอะไรอยู่ในกระเป๋า ปลาหมึก เพราะมึกอยู่ในกระเป๋า","แมวอะไรเก่งที่สุด แมวน้ำ เพราะว่ายน้ำได้"]],
+[/ai|เอไอ|หุ่นยนต์|claude|chatgpt|เป็นคนไหม|จริงไหม/i,["เราเป็นโปรแกรมเล็กๆ ที่เขียนกฎเองในหน้านี้ ไม่ได้ใช้ AI อื่นเลย เลยไม่ฉลาดเท่า แต่ตั้งใจฟังนะ","f:เราคือชุดกฎกับความตั้งใจ ไม่มีโมเดลใหญ่ซ่อนอยู่หรอก"]],
+[/กี่โมง|วันนี้วันอะไร|เวลา/,[()=>"ตอนนี้ "+new Date().toLocaleString('th-TH')+"{p}"]],
+];
+const FB=["เล่าต่อได้เลย เราฟังอยู่","แล้วรู้สึกยังไงกับเรื่องนั้น","ขอฟังเพิ่มหน่อย เกิดอะไรขึ้นต่อ","w:ขอบคุณที่เล่าให้ฟังนะ เล่าต่อได้อีก","s:ตอบสั้นแบบนี้ให้เราเดาเหรอ ขยายหน่อยสิ","f:เรื่องนี้ซับซ้อนเกินสมองเราไปนิด แต่ตั้งใจฟังเต็มที่","ทำไมถึงคิดแบบนั้นล่ะ"];
+function pick(arr){// สุ่มถ่วงน้ำหนักตามโทน
+ const k={w:S.warm,f:S.fun,s:S.sass};
+ const w=arr.map(x=>typeof x=='string'&&x[1]==':'?Math.max(.05,k[x[0]]/40):1);
+ let r=Math.random()*w.reduce((a,b)=>a+b),i=0;while((r-=w[i])>0)i++;
+ const x=arr[i];return typeof x=='function'?x():x.replace(/^[wfs]:/,'');
+}
+function reply(m){
+ let a=FB;
+ for(const[re,rs]of I){const x=m.match(re);if(x){a=rs;if(x[1]&&re.source.includes('ชื่อ'))user=x[1];break}}
+ let t=pick(a).replace(/เรา/g,S.pron||'เรา').replace(/\{u\}/g,user||'เธอ').replace(/\{n\}/g,S.name).replace(/\{p\}/g,S.end?' '+S.end:'');
+ const e=S.energy;
+ if(e>66)t+=' '+R(['✨','😄','🔥','🎉']);else if(e<33)t=t.replace(/\s*$/,'...');else if(Math.random()<.3)t+=' 🙂';
+ return t;
+}
+function add(c,t){const d=document.createElement('div');d.className='m '+c;d.textContent=t;$('log').append(d);$('log').scrollTop=1e9}
+$('f').onsubmit=e=>{e.preventDefault();const m=$('t').value.trim();if(!m)return;$('t').value='';add('u',m);
+ setTimeout(()=>add('b',reply(m)),300+Math.random()*(1200-S.energy*8))};
+function sync(){$('title').textContent='💬 คุยกับ '+S.name;$('desc').value=S.desc||'';
+ for(const k of['name','end','warm','fun','sass','energy']){$(k).value=S[k];if($('v_'+k))$('v_'+k).textContent=S[k]}}
+for(const k of['name','end','warm','fun','sass','energy'])$(k).oninput=()=>{S[k]=$(k).type=='range'?+$(k).value:$(k).value;sync();try{localStorage.setItem('friend',JSON.stringify(S))}catch(e){}};
+document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{[S.warm,S.fun,S.sass,S.energy]=b.dataset.p.split(',').map(Number);sync();$('name').dispatchEvent(new Event('input'));add('b',reply('สวัสดี'))});
+// อ่านข้อความนิสัยด้วย keyword (ไม่มี AI/API)
+function parse(s){
+ const L=re=>{let v=0;for(const m of s.matchAll(new RegExp('('+re+')\\s*(นิดๆ|นิดหน่อย|หน่อย|มาก|สุดๆ|โคตร)?','g'))){const q=m[2]||'';v=Math.max(v,/นิด|หน่อย/.test(q)?35:/มาก|สุด|โคตร/.test(q)?100:65)}return v};
+ const T={warm:'อบอุ่น|ใจดี|อ่อนโยน|เอาใจใส่|น่ารัก|ห่วงใย',fun:'ตลก|ขี้เล่น|กวน|เฮฮา|สนุก|ปั่น',sass:'ปากร้าย|ปากแซ่บ|แซะ|แซว|ขี้เหวี่ยง|ดุ|ปากจัด',energy:'ร่าเริง|สดใส|พลังงานเยอะ|กระตือรือร้น|ซน'};
+ for(const k in T)S[k]=L(T[k]);
+ if(/สงบ|นิ่ง|เรียบ|เงียบ|ใจเย็น|ขี้เกียจ|ชิล/.test(s))S.energy=15;else if(!S.energy)S.energy=50;
+ if(!S.warm&&!S.fun&&!S.sass)S.warm=50;
+ let m;
+ if(m=s.match(/ชื่อ\s*(\S+)/))S.name=m[1];
+ if(m=s.match(/ลงท้าย(?:ว่า|ด้วย)?\s*(ครับ|ค่ะ|คะ|นะ|จ้า|จ๊ะ)/))S.end=m[1];
+ if(m=s.match(/เรียกตัวเองว่า\s*(\S+)/))S.pron=m[1];
+}
+$('go').onclick=()=>{S.desc=$('desc').value;parse(S.desc);sync();$('name').dispatchEvent(new Event('input'));add('b',reply('สวัสดี'))};
+sync();add('b','สวัสดี ฉันคือ '+S.name+' พิมพ์นิสัยที่อยากได้ทางซ้าย แล้วกด "ใช้นิสัยนี้" ได้เลย');
+</script></body></html>
